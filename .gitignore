@@ -1,0 +1,14 @@
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# IDE and local environment
+.vscode/
+.idea/
+.env
+
+# Generated HTML reports
+allure-report/
