@@ -2,8 +2,7 @@ from typing import Any
 
 import requests
 
-
-BASE_URL = "https://qa-stellarburgers.education-services.ru/api"
+from tests.constants import BASE_URL
 
 
 class ApiClient:
