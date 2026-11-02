@@ -1,44 +1,51 @@
 from typing import Any
 
 import allure
-import pytest
 
 from tests.api_client import ApiClient
+from tests.constants import ORDERS
+from tests.helpers import create_order_for_user, ingredient_ids
 
 
 @allure.feature("Создание заказа")
 class TestCreateOrder:
-    @allure.title("Создание заказа с ингредиентами, авторизация: {with_authorization}")
-    @pytest.mark.parametrize("with_authorization", [True, False])
-    def test_create_order_with_ingredients(
+    @allure.title("Создание заказа с ингредиентами и авторизацией")
+    def test_create_order_with_authorization(
         self,
         api_client: ApiClient,
         registered_user: dict[str, Any],
         ingredients: list[dict[str, Any]],
-        with_authorization: bool,
     ) -> None:
-        bun = next(item for item in ingredients if item["type"] == "bun")
-        filling = next(item for item in ingredients if item["type"] != "bun")
-        ingredient_ids = [bun["_id"], filling["_id"]]
-        token = registered_user["accessToken"] if with_authorization else None
+        ids = ingredient_ids(ingredients)
 
-        with allure.step("Создать заказ с актуальными ID из API ингредиентов"):
+        with allure.step("Создать заказ авторизованного пользователя"):
             response = api_client.request(
-                "POST",
-                "/orders",
-                payload={"ingredients": ingredient_ids},
-                token=token,
+                "POST", ORDERS, payload={"ingredients": ids},
+                token=registered_user["accessToken"],
             )
 
         assert response.status_code == 200
         body = response.json()
         assert body["success"] is True
         assert body.get("name")
-        order = body["order"]
-        assert order.get("number")
-        if with_authorization:
-            assert order.get("_id")
-            assert [item["_id"] for item in order["ingredients"]] == ingredient_ids
+        assert body["order"].get("number")
+        assert body["order"].get("_id")
+        assert [item["_id"] for item in body["order"]["ingredients"]] == ids
+
+    @allure.title("Создание заказа с ингредиентами без авторизации")
+    def test_create_order_without_authorization(
+        self, api_client: ApiClient, ingredients: list[dict[str, Any]]
+    ) -> None:
+        with allure.step("Создать заказ без токена"):
+            response = api_client.request(
+                "POST", ORDERS, payload={"ingredients": ingredient_ids(ingredients)}
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        assert body.get("name")
+        assert body["order"].get("number")
 
     @allure.title("Создание заказа без ингредиентов отклоняется")
     def test_create_order_without_ingredients(
@@ -49,7 +56,7 @@ class TestCreateOrder:
         with allure.step("Отправить пустой список ингредиентов"):
             response = api_client.request(
                 "POST",
-                "/orders",
+                ORDERS,
                 payload={"ingredients": []},
                 token=registered_user["accessToken"],
             )
@@ -69,7 +76,7 @@ class TestCreateOrder:
         with allure.step("Создать заказ с документированным невалидным хешем"):
             response = api_client.request(
                 "POST",
-                "/orders",
+                ORDERS,
                 payload={"ingredients": ["invalid-ingredient-hash"]},
                 token=registered_user["accessToken"],
             )
@@ -94,7 +101,7 @@ class TestCreateOrder:
         with allure.step("Отправить заведомо некорректный ID ингредиента"):
             response = api_client.request(
                 "POST",
-                "/orders",
+                ORDERS,
                 payload={"ingredients": [invalid_hash]},
                 token=registered_user["accessToken"],
             )
@@ -115,21 +122,13 @@ class TestUserOrders:
         registered_user: dict[str, Any],
         ingredients: list[dict[str, Any]],
     ) -> None:
-        bun = next(item for item in ingredients if item["type"] == "bun")
-        filling = next(item for item in ingredients if item["type"] != "bun")
-        with allure.step("Создать заказ для тестового пользователя"):
-            created = api_client.request(
-                "POST",
-                "/orders",
-                payload={"ingredients": [bun["_id"], filling["_id"]]},
-                token=registered_user["accessToken"],
-            )
-        assert created.status_code == 200, created.text
-        created_order_id = created.json()["order"]["_id"]
+        created_order_id = create_order_for_user(
+            api_client, registered_user["accessToken"], ingredients
+        )
 
         with allure.step("Запросить ленту заказов с accessToken"):
             response = api_client.request(
-                "GET", "/orders", token=registered_user["accessToken"]
+                "GET", ORDERS, token=registered_user["accessToken"]
             )
 
         assert response.status_code == 200
@@ -143,7 +142,7 @@ class TestUserOrders:
     @allure.title("Получение заказов пользователя без авторизации запрещено")
     def test_get_user_orders_without_authorization(self, api_client: ApiClient) -> None:
         with allure.step("Запросить заказы без accessToken"):
-            response = api_client.request("GET", "/orders")
+            response = api_client.request("GET", ORDERS)
 
         assert response.status_code == 401
         assert response.json() == {
