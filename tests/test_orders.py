@@ -1,6 +1,7 @@
 from typing import Any
 
 import allure
+import pytest
 
 from tests.api_client import ApiClient
 from tests.constants import ORDERS
