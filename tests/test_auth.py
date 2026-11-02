@@ -4,6 +4,8 @@ import allure
 import pytest
 
 from tests.api_client import ApiClient
+from tests.constants import LOGIN, REGISTER
+from tests.helpers import missing_field_payload
 
 
 @allure.feature("Регистрация и авторизация")
@@ -16,7 +18,7 @@ class TestUserRegistration:
         cleanup_user: Any,
     ) -> None:
         with allure.step("Отправить данные нового пользователя"):
-            response = api_client.request("POST", "/auth/register", payload=user_data)
+            response = api_client.request("POST", REGISTER, payload=user_data)
 
         assert response.status_code == 200
         body = response.json()
@@ -37,7 +39,7 @@ class TestUserRegistration:
     ) -> None:
         with allure.step("Повторно отправить данные зарегистрированного пользователя"):
             response = api_client.request(
-                "POST", "/auth/register", payload=registered_user["payload"]
+                "POST", REGISTER, payload=registered_user["payload"]
             )
 
         assert response.status_code == 403
@@ -54,9 +56,9 @@ class TestUserRegistration:
         user_data: dict[str, str],
         field: str,
     ) -> None:
-        payload = {key: value for key, value in user_data.items() if key != field}
+        payload = missing_field_payload(user_data, field)
         with allure.step(f"Отправить данные без поля {field}"):
-            response = api_client.request("POST", "/auth/register", payload=payload)
+            response = api_client.request("POST", REGISTER, payload=payload)
 
         assert response.status_code == 403
         assert response.json() == {
@@ -77,7 +79,7 @@ class TestUserLogin:
         with allure.step("Войти с зарегистрированными данными"):
             response = api_client.request(
                 "POST",
-                "/auth/login",
+                LOGIN,
                 payload={"email": payload["email"], "password": payload["password"]},
             )
 
@@ -107,7 +109,7 @@ class TestUserLogin:
         login_data = {"email": payload["email"], "password": payload["password"]}
         login_data[credential] = value
         with allure.step(f"Войти с некорректным значением {credential}"):
-            response = api_client.request("POST", "/auth/login", payload=login_data)
+            response = api_client.request("POST", LOGIN, payload=login_data)
 
         assert response.status_code == 401
         assert response.json() == {
